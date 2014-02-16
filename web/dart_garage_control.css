@@ -1,0 +1,43 @@
+
+body {
+  background-color: #F8F8F8;
+  font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
+  font-weight: normal;
+  line-height: 1.2em;
+  margin: 15px;
+}
+
+h1, p {
+  color: #333;
+}
+
+.red {
+  color: red;
+}
+
+.button {
+  width: 100%;
+  margin: 5px;
+  font-size: 20px;
+  padding: 15px;
+}
+
+.hidden {
+  visibility: hidden;
+}
+
+#title {
+  font-variant:small-caps;
+}
+#status {
+  display: inline;
+  padding-left: 30px;
+  font-size: 25px;
+  font-variant: small-caps;
+}
+
+#status_container {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}

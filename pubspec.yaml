@@ -1,0 +1,4 @@
+name: dart_garage_control
+description: A web client for https://github.com/drweaver/py_garage_server
+dependencies:
+  browser: any
