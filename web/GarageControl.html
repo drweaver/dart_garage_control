@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Garage Control</title>
+    <link rel="stylesheet" href="dart_garage_control.css">
+  </head>
+  <body>
+    <div id='title' align='center'>Garage Control</div>
+    
+    
+    <button type="button" class="button" id="open" disabled>Open</button>
+
+    <button type="button" class="button" id="stop">Stop</button>
+
+    <button type="button" class="button" id="close">Close</button>
+
+    <div id="status_container" align="center">
+      <div id="status">Loading...</div><img id='spinner' src='spinner.gif'/>
+    </div>
+
+    <button type="button" class="button" id="refresh">Refresh</button>
+
+    <button type="button" class="button" id="logout">Log off</button>
+
+    <script type="application/dart" src="dart_garage_control.dart"></script>
+    <script src="packages/browser/dart.js"></script>
+  </body>
+</html>
