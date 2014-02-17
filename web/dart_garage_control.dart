@@ -18,12 +18,15 @@ final REFRESH_MAX = 20;
 
 Geoposition pos = null;
 
+var timer = null;
+
 void main() {
   post(stateUri);
   querySelector("#refresh").onClick.listen((e)=>post(stateUri));
   querySelector("#stop").onClick.listen( (e)=>post(stopUri));
   querySelector('#close').onClick.listen( (e)=>post(closeUri));
   querySelector('#open').onClick.listen( (e)=>post('$openUri?${posUriParams()}') );
+  querySelector('#logout').onClick.listen( (e)=>window.location.assign('/oauth2/sign_in'));
   window.navigator.geolocation.watchPosition().listen((Geoposition position) {
     pos = position;
     print('Position = ${pos.coords.latitude},${pos.coords.longitude}');
@@ -35,6 +38,7 @@ String posUriParams() => 'lat=${pos.coords.latitude}&lng=${pos.coords.longitude}
 
 void post(String uri) {
   print('making request to: $uri');
+  if( timer != null ) timer.cancel();
   querySelector('#spinner').classes.remove('hidden');
   var httpRequest = new HttpRequest();
   httpRequest..open('POST', uri)
@@ -47,11 +51,8 @@ void doorStateResponse(HttpRequest request) {
   if (request.status != 200) {
     print('Uh oh, there was an error of ${request.status} errorCount = ${errorCount}');
     querySelector('#status').classes.add('red');
-    if(errorCount++ < ERROR_MAX) {
-      new Timer(REFRESH, ()=>post(stateUri));
-    } else {
-      window.location.reload();
-    }
+    if(errorCount++ > ERROR_MAX) window.location.reload();
+    timer = new Timer(REFRESH, ()=>post(stateUri));
   } else {
     errorCount = 0;
     querySelector('#status').classes.remove('red');
@@ -70,7 +71,7 @@ processDoorState(String responseText) {
   querySelector("#status").text = response['state'];
   if( refreshCount++ < REFRESH_MAX && 
       !(response['state'] == 'closed' || response['state'] == 'opened') ) {   
-    new Timer(REFRESH,()=>post(stateUri));
+    timer = new Timer(REFRESH,()=>post(stateUri));
   } else {
     refreshCount = 0;
   }
