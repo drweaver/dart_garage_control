@@ -56,13 +56,7 @@ void doorStateResponse(HttpRequest request) {
   } else {
     errorCount = 0;
     querySelector('#status').classes.remove('red');
-    processDoorState(request.responseText);
-    print('Data has been posted refreshCount = ${refreshCount}');
-  }
-}
-
-processDoorState(String responseText) {
-  var response = JSON.decode(responseText);
+      var response = JSON.decode(responseText);
   assert( response is Map );
   if( response['auth'] != 'OK' ) {
     querySelector('#status').classes.add('red');
@@ -74,5 +68,73 @@ processDoorState(String responseText) {
     timer = new Timer(REFRESH,()=>post(stateUri));
   } else {
     refreshCount = 0;
+  }
+    print('Data has been posted refreshCount = ${refreshCount}');
+  }
+}
+
+class DoorStateView {
+  DoorStatePresenter presenter;
+  var status =  querySelector('#status');
+  var stop   =  querySelector("#stop");
+  var refresh=  querySelector('#refresh');
+  var open   =  querySelector('#open');
+  var logout =  querySelector('#logout');
+  var close  =  querySelector('#close');
+  var spinner=  querySelector('#spinner');
+  good =>  _status.classes.remove('red');
+  bad  =>  _status.classes.add('red');
+  set status(String status) => this.status.text = status;
+  inProgress => spinner.classes.remove('hidden');
+  finished => spinner.classes.add('hidden');
+}
+
+class DoorStatePresenter {
+  DoorStateView view;
+  Timer timer;
+  Geoposition pos;
+  var httpRequest = new HttpRequest();
+  errorCount = 0;
+  refreshCount = 0;
+  DoorStatePresenter(this.view) {
+    view.refresh.onClick.listen((e)=>post(stateUri));
+    view.stop.onClick.listen( (e)=>post(stopUri));
+    view.close.onClick.listen( (e)=>post(closeUri));
+    view.open.onClick.listen( (e)=>post('$openUri?${posUriParams()}') );
+    view.logout.onClick.listen( (e)=>window.location.assign('/oauth2/sign_in') );
+  }
+  String posUriParams() => 'lat=${pos.coords.latitude}&lng=${pos.coords.longitude}';
+  void post(String uri) {
+    print('making request to: $uri');
+    if( timer != null ) timer.cancel();
+    httpRequest.abort();
+    view.inProgress();
+    httpRequest..open('POST', uri)
+               ..onLoadEnd.listen((e) => doorStateResponse())
+               ..send();
+  }
+  doorStateResponse() {
+    view.finished();
+    view.good();
+    if( request.status != 200) {
+      print('Uh oh, there was an error of ${request.status} errorCount = ${errorCount}');
+      view.bad();
+      if(errorCount++ > ERROR_MAX) window.location.reload();
+      timer = new Timer(REFRESH, ()=>post(stateUri));
+      return;
+    }
+    errorCount = 0;
+    var response = JSON.decode(responseText);
+    if( response['auth'] != 'OK' ) {
+      view.bad();
+      return;
+    }
+    view.status = response['state'];
+    if( refreshCount++ < REFRESH_MAX && 
+      !(response['state'] == 'closed' || response['state'] == 'opened') ) {   
+      timer = new Timer(REFRESH,()=>post(stateUri));
+    } else {
+      refreshCount = 0;
+    }
   }
 }
