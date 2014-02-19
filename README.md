@@ -4,7 +4,7 @@ Dart Garage Control
 Garage Control web client for [py_garage_server](https://github.com/drweaver/py_garage_server) 
 written using [Dart](https://www.dartlang.org/)
 
-Pre-compiled files [garagecontrol-client.zip](https://github.com/drweaver/dar_garage_control/releases/latest)
+Pre-compiled files [garagecontrol-client.zip](https://github.com/drweaver/dart_garage_control/releases/latest)
 
 Support for mobile view only, sample screenshot taken from a mobile browser:
 
