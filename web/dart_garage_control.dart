@@ -2,139 +2,170 @@ import 'dart:html';
 import 'dart:async';
 import 'dart:convert' show JSON;
 
-const REFRESH = const Duration(seconds: 3);
-
-final uriRoot = 'garagedoor';
-
-final stateUri = '${uriRoot}/state';
-final stopUri = '${uriRoot}/stop';
-final openUri = '${uriRoot}/open';
-final closeUri = '${uriRoot}/close';
-
-var errorCount = 0;
-var refreshCount = 0;
-final ERROR_MAX =  5;
-final REFRESH_MAX = 20;
-
-Geoposition pos = null;
-
-var timer = null;
-
 void main() {
-  post(stateUri);
-  querySelector("#refresh").onClick.listen((e)=>post(stateUri));
-  querySelector("#stop").onClick.listen( (e)=>post(stopUri));
-  querySelector('#close').onClick.listen( (e)=>post(closeUri));
-  querySelector('#open').onClick.listen( (e)=>post('$openUri?${posUriParams()}') );
-  querySelector('#logout').onClick.listen( (e)=>window.location.assign('/oauth2/sign_in'));
-  window.navigator.geolocation.watchPosition().listen((Geoposition position) {
-    pos = position;
-    print('Position = ${pos.coords.latitude},${pos.coords.longitude}');
-    (querySelector("#open") as ButtonElement).disabled = false;
-  }, onError: (e)=>print('PositionError: ${e.message}'));
-}
+  
+  var view = new DoorStateView();
+  
+  var statePresenter = new DoorStatePresenter.attachToView( view );
+  statePresenter.refresh();
+  
+  var authLocationPresenter = new AuthLocationPresenter.attachToView( view );
+  statePresenter.position = authLocationPresenter;
+  authLocationPresenter.startLocationListener();
 
-String posUriParams() => 'lat=${pos.coords.latitude}&lng=${pos.coords.longitude}';
-
-void post(String uri) {
-  print('making request to: $uri');
-  if( timer != null ) timer.cancel();
-  querySelector('#spinner').classes.remove('hidden');
-  var httpRequest = new HttpRequest();
-  httpRequest..open('POST', uri)
-             ..onLoadEnd.listen((e) => doorStateResponse(httpRequest))
-             ..send();
-}
-
-void doorStateResponse(HttpRequest request) {
-  querySelector('#spinner').classes.add('hidden');
-  if (request.status != 200) {
-    print('Uh oh, there was an error of ${request.status} errorCount = ${errorCount}');
-    querySelector('#status').classes.add('red');
-    if(errorCount++ > ERROR_MAX) window.location.reload();
-    timer = new Timer(REFRESH, ()=>post(stateUri));
-  } else {
-    errorCount = 0;
-    querySelector('#status').classes.remove('red');
-      var response = JSON.decode(responseText);
-  assert( response is Map );
-  if( response['auth'] != 'OK' ) {
-    querySelector('#status').classes.add('red');
-    return;
-  }
-  querySelector("#status").text = response['state'];
-  if( refreshCount++ < REFRESH_MAX && 
-      !(response['state'] == 'closed' || response['state'] == 'opened') ) {   
-    timer = new Timer(REFRESH,()=>post(stateUri));
-  } else {
-    refreshCount = 0;
-  }
-    print('Data has been posted refreshCount = ${refreshCount}');
-  }
 }
 
 class DoorStateView {
-  DoorStatePresenter presenter;
-  var status =  querySelector('#status');
-  var stop   =  querySelector("#stop");
-  var refresh=  querySelector('#refresh');
-  var open   =  querySelector('#open');
-  var logout =  querySelector('#logout');
-  var close  =  querySelector('#close');
+  var state =  querySelector('#status');
+  ButtonElement stop   =  querySelector("#stop");
+  ButtonElement refresh=  querySelector('#refresh');
+  ButtonElement open   =  querySelector('#open');
+  ButtonElement logout =  querySelector('#logout');
+  ButtonElement close  =  querySelector('#close');
   var spinner=  querySelector('#spinner');
-  good =>  _status.classes.remove('red');
-  bad  =>  _status.classes.add('red');
-  set status(String status) => this.status.text = status;
-  inProgress => spinner.classes.remove('hidden');
-  finished => spinner.classes.add('hidden');
+  good() =>  state.classes.remove('red');
+  bad()  =>  state.classes.add('red');
+  inProgress() => spinner.classes.remove('hidden');
+  finished() => spinner.classes.add('hidden');
+  canOpen() {
+    open.disabled = false;
+    open.classes.remove('red');
+  }
+  cannotOpen() {
+    open.disabled = true;
+    open.classes.add('red');
+  }
 }
 
-class DoorStatePresenter {
-  DoorStateView view;
-  Timer timer;
-  Geoposition pos;
-  var httpRequest = new HttpRequest();
-  errorCount = 0;
-  refreshCount = 0;
-  DoorStatePresenter(this.view) {
-    view.refresh.onClick.listen((e)=>post(stateUri));
-    view.stop.onClick.listen( (e)=>post(stopUri));
-    view.close.onClick.listen( (e)=>post(closeUri));
-    view.open.onClick.listen( (e)=>post('$openUri?${posUriParams()}') );
-    view.logout.onClick.listen( (e)=>window.location.assign('/oauth2/sign_in') );
+class HasPosition {
+  Geoposition position;
+  get coords => position.coords;
+}
+
+String posUrlParams(HasPosition position) {
+  if( position == null ) return '';
+  return 'lat=${position.coords.latitude}&lng=${position.coords.longitude}';
+}
+
+class AuthLocationPresenter implements HasPosition {
+  DoorStateView _view;
+  
+  Geoposition position;
+  get coords => position.coords;
+  
+  AuthLocationPresenter.attachToView(this._view);
+  
+  startLocationListener() {
+    _view.cannotOpen();
+    window.navigator.geolocation.watchPosition().listen((Geoposition position) {
+      this.position = position;
+      print('Position = ${position.coords.latitude},${position.coords.longitude}');
+      _authLocation(position);
+    }, onError: (e)=>print('PositionError: ${e.message}'));
   }
-  String posUriParams() => 'lat=${pos.coords.latitude}&lng=${pos.coords.longitude}';
-  void post(String uri) {
+  
+  _authLocation(position) => _post('garagedoor/authlocation?${posUrlParams(this)}');
+
+  void _post(String uri) {
     print('making request to: $uri');
-    if( timer != null ) timer.cancel();
-    httpRequest.abort();
-    view.inProgress();
-    httpRequest..open('POST', uri)
-               ..onLoadEnd.listen((e) => doorStateResponse())
-               ..send();
+    var _httpRequest = new HttpRequest();
+    _httpRequest..open('POST', uri)
+                ..onLoadEnd.listen((e)=>_authLocationResponse(_httpRequest))
+                ..send();
   }
-  doorStateResponse() {
-    view.finished();
-    view.good();
-    if( request.status != 200) {
-      print('Uh oh, there was an error of ${request.status} errorCount = ${errorCount}');
-      view.bad();
-      if(errorCount++ > ERROR_MAX) window.location.reload();
-      timer = new Timer(REFRESH, ()=>post(stateUri));
+  
+  _authLocationResponse(HttpRequest httpRequest) {
+    if( httpRequest.status != 200 ) {
+      print('Server Error: ${httpRequest.status}');
       return;
     }
-    errorCount = 0;
-    var response = JSON.decode(responseText);
+    var response = JSON.decode(httpRequest.responseText);
+    if( response is! Map || !response.containsKey('auth') ) {
+      print('Unexpected data returned from server: ${httpRequest.responseText}');
+      return;
+    }
     if( response['auth'] != 'OK' ) {
-      view.bad();
+      _view.cannotOpen();
+    } else {
+      _view.canOpen();
+    }
+  }
+  
+}
+
+
+
+class DoorStatePresenter {
+  DoorStateView _view;
+  Timer _timer;
+  HasPosition position;
+
+  var _errorCount = 0;
+  var _refreshCount = 0;
+  
+  final ERROR_MAX =  3;
+  final REFRESH_MAX = 10;
+  
+  DoorStatePresenter.attachToView(this._view) {
+    _view.refresh.onClick.listen( (e)=>refresh() );
+    _view.stop.onClick.listen( (e)=>_stop() );
+    _view.close.onClick.listen( (e)=>_close() );
+    _view.open.onClick.listen( (e)=>_open() );
+    _view.logout.onClick.listen( (e)=>window.location.assign('/oauth2/sign_in') );
+  }
+  
+  refresh() => _post('garagedoor/state');
+  _stop() => _post('garagedoor/stop');
+  _close() => _post('garagedoor/close');
+  _open() => _post('garagedoor/open?${posUrlParams(position)}');
+  
+  Timer _refreshDelayed({seconds: 3}) => new Timer(new Duration(seconds: seconds), refresh);
+    
+  void _post(String uri) {
+    _view.inProgress();
+    print('making request to: $uri');
+    if( _timer != null ) _timer.cancel();
+    var _httpRequest = new HttpRequest();
+    _httpRequest..open('POST', uri)
+                ..onLoadEnd.listen((e)=>_doorStateResponse(_httpRequest))
+                ..send();
+  }
+  
+  bool _doorMoving(String state)=>['opening','closing'].contains(state);
+
+  _serverError(error) {
+    print('Server Error: ${error}, errorCount = ${_errorCount}');
+    _view.bad();
+    if(_errorCount++ >= ERROR_MAX) window.location.reload();
+    if( _timer == null || !_timer.isActive ) _timer = _refreshDelayed();
+  }
+  
+  _doorStateResponse(HttpRequest _httpRequest) {
+    _view.finished();
+    _view.good();
+    if( _httpRequest.status != 200) {
+      _serverError(_httpRequest.status);
       return;
     }
-    view.status = response['state'];
-    if( refreshCount++ < REFRESH_MAX && 
-      !(response['state'] == 'closed' || response['state'] == 'opened') ) {   
-      timer = new Timer(REFRESH,()=>post(stateUri));
-    } else {
-      refreshCount = 0;
+    var response = JSON.decode(_httpRequest.responseText);
+    if( response is! Map || !response.containsKey('auth') ) {
+      _serverError('Unexpected data returned from server: ${_httpRequest.responseText}');
+      return;
     }
+    if( response['auth'] != 'OK' ) {
+      _view.cannotOpen();
+      return;
+    }
+    if( !response.containsKey('state') ) {
+      _serverError('Unexpected data returned from server: ${_httpRequest.responseText}');
+      return;
+    }
+    _errorCount = 0;
+    var state = _view.state.text = response['state'];
+    if( _doorMoving(state) ) {   
+      if( _refreshCount++ >= REFRESH_MAX ) return; 
+      if( _timer == null || !_timer.isActive) _timer = _refreshDelayed();
+    } 
+    _refreshCount = 0;
   }
 }
