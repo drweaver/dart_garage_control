@@ -58,6 +58,7 @@ class AuthLocationPresenter implements HasPosition {
   startLocationListener() {
     _view.cannotOpen();
     window.navigator.geolocation.watchPosition().listen((Geoposition position) {
+      //TODO: Probably only worth doing this if moving more than 1/2 mile?
       this.position = position;
       print('Position = ${position.coords.latitude},${position.coords.longitude}');
       _authLocation(position);
